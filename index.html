@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PayMe Safari iframe test</title>
+  <style>
+    * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
+    body { margin: 0; background: #f5f7fa; color: #1c2534; font: 1rem/1.5 system-ui, sans-serif; }
+    main { max-width: 64rem; margin: auto; padding: clamp(1rem, 4vw, 3rem); }
+    h1 { margin: 0; font-size: clamp(1.5rem, 4vw, 2rem); }
+    form { display: grid; gap: .5rem; max-width: 30rem; }
+    label { font-weight: 600; }
+    input, button { font: inherit; padding: .6rem .85rem; border-radius: .4rem; }
+    input { border: 1px solid #7b8797; }
+    button { justify-self: start; background: #174ea6; color: white; border: 1px solid transparent; }
+    button:disabled { opacity: .65; }
+    a { color: #174ea6; }
+    iframe { display: block; width: 100%; height: max(38rem, 75vh); margin-top: .75rem; border: 1px solid #c3cbd5; border-radius: .4rem; background: white; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>PayMe Safari iframe test</h1>
+    <p id="notice">Creates a live ₪5 sale. Completing checkout can charge your payment method.</p>
+    <form id="sale-form" autocomplete="off" aria-describedby="notice">
+      <label for="seller-id">PayMe seller ID</label>
+      <input id="seller-id" type="password" required autocomplete="off" spellcheck="false" autocapitalize="none">
+      <button type="submit">Generate ₪5 sale</button>
+    </form>
+    <p id="status" role="status"></p>
+    <section id="checkout" aria-label="PayMe checkout" hidden>
+      <a id="checkout-link" target="_blank" rel="noopener noreferrer">Open same sale in a new tab</a>
+      <iframe id="checkout-frame" title="PayMe hosted checkout" allow="payment"></iframe>
+    </section>
+  </main>
+  <script>
+    const paymeOrigin = "https://live.payme.io";
+    const form = document.querySelector("#sale-form");
+    const sellerInput = document.querySelector("#seller-id");
+    const submitButton = form.querySelector("button");
+    const status = document.querySelector("#status");
+    const checkout = document.querySelector("#checkout");
+    const checkoutLink = document.querySelector("#checkout-link");
+    const checkoutFrame = document.querySelector("#checkout-frame");
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      if (submitButton.disabled) return;
+
+      const sellerId = sellerInput.value.trim();
+      if (!sellerId) {
+        status.textContent = "Enter your PayMe seller ID.";
+        sellerInput.focus();
+        return;
+      }
+
+      submitButton.disabled = true;
+      checkout.hidden = true;
+      checkoutLink.removeAttribute("href");
+      checkoutFrame.removeAttribute("src");
+      status.textContent = "Creating sale…";
+      sellerInput.value = "";
+
+      try {
+        const response = await fetch(`${paymeOrigin}/api/generate-sale`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            seller_payme_id: sellerId,
+            sale_price: 500,
+            currency: "ILS",
+            product_name: "Safari iframe test",
+            transaction_id: `iframe-${crypto.randomUUID()}`,
+            sale_type: "sale",
+            sale_payment_method: "multi",
+          }),
+        });
+        const sale = await response.json().catch(() => null);
+
+        if (!response.ok || sale?.status_code !== 0) {
+          const errorCode = sale?.status_error_code;
+          const code = Number.isSafeInteger(errorCode) ? `, PayMe code ${errorCode}` : "";
+          status.textContent = `Sale creation failed (HTTP ${response.status}${code}).`;
+          return;
+        }
+
+        const checkoutUrl = new URL(sale.sale_url);
+        if (checkoutUrl.origin !== paymeOrigin || checkoutUrl.username || checkoutUrl.password) {
+          status.textContent = "PayMe returned an unexpected checkout URL.";
+          return;
+        }
+
+        checkoutLink.href = checkoutUrl.href;
+        checkoutFrame.src = checkoutUrl.href;
+        status.textContent = `Sale created: ${sale.payme_sale_id}.`;
+        checkout.hidden = false;
+      } catch {
+        status.textContent = "Could not load checkout. Check the browser’s Network tab before retrying: PayMe may already have created the sale.";
+      } finally {
+        submitButton.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
