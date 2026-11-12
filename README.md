@@ -1,5 +1,7 @@
 # PayMe Safari iframe test
 
+[Run the test in Safari over HTTPS](https://roman-sh.github.io/payme-safari-iframe-test/)
+
 Compare PayMe’s hosted checkout in a Safari iframe and in a new tab using the same sale.
 
 1. Download `index.html` and run `python3 -m http.server 4173 --bind 127.0.0.1` from its folder.
